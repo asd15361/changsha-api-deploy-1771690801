@@ -29,12 +29,19 @@ type PocketBaseUserAppRecord = {
 export class PocketBaseSyncService {
   private readonly logger = new Logger(PocketBaseSyncService.name);
   private readonly baseUrl = process.env.POCKETBASE_URL?.trim() ?? '';
-  private readonly adminEmail = process.env.POCKETBASE_ADMIN_EMAIL?.trim() ?? '';
-  private readonly adminPassword = process.env.POCKETBASE_ADMIN_PASSWORD?.trim() ?? '';
-  private readonly authCollectionName = process.env.POCKETBASE_AUTH_COLLECTION?.trim() || 'users';
-  private readonly userAppsCollectionName = process.env.POCKETBASE_USER_APPS_COLLECTION?.trim() || 'user_apps';
-  private readonly defaultAppId = process.env.POCKETBASE_DEFAULT_APP_ID?.trim() || 'mobile';
-  private readonly allowedAppIds = (process.env.POCKETBASE_ALLOWED_APP_IDS?.trim() || 'mobile,web,admin')
+  private readonly adminEmail =
+    process.env.POCKETBASE_ADMIN_EMAIL?.trim() ?? '';
+  private readonly adminPassword =
+    process.env.POCKETBASE_ADMIN_PASSWORD?.trim() ?? '';
+  private readonly authCollectionName =
+    process.env.POCKETBASE_AUTH_COLLECTION?.trim() || 'users';
+  private readonly userAppsCollectionName =
+    process.env.POCKETBASE_USER_APPS_COLLECTION?.trim() || 'user_apps';
+  private readonly defaultAppId =
+    process.env.POCKETBASE_DEFAULT_APP_ID?.trim() || 'mobile';
+  private readonly allowedAppIds = (
+    process.env.POCKETBASE_ALLOWED_APP_IDS?.trim() || 'mobile,web,admin'
+  )
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
@@ -44,9 +51,12 @@ export class PocketBaseSyncService {
   }
 
   private normalizeAppId(appIdRaw?: string): string {
-    const candidate = (appIdRaw ?? this.defaultAppId).trim() || this.defaultAppId;
+    const candidate =
+      (appIdRaw ?? this.defaultAppId).trim() || this.defaultAppId;
     if (!this.allowedAppIds.includes(candidate)) {
-      this.logger.warn(`收到未白名单appId(${candidate})，已回退默认值(${this.defaultAppId})。`);
+      this.logger.warn(
+        `收到未白名单appId(${candidate})，已回退默认值(${this.defaultAppId})。`,
+      );
       return this.defaultAppId;
     }
     return candidate;
@@ -57,7 +67,9 @@ export class PocketBaseSyncService {
   }
 
   private toPocketBasePassword(phone: string): string {
-    const salt = process.env.POCKETBASE_USER_PASSWORD_SALT?.trim() || 'changsha_pulse_pb_2026';
+    const salt =
+      process.env.POCKETBASE_USER_PASSWORD_SALT?.trim() ||
+      'changsha_pulse_pb_2026';
     const suffix = phone.slice(-6);
     return `Cp@${suffix}_${salt}`;
   }
@@ -106,7 +118,7 @@ export class PocketBaseSyncService {
   private async findUserByEmail(superToken: string, email: string) {
     const escapedEmail = email.replace(/"/g, '\\"');
     return this.requestJson<PocketBaseListResponse<PocketBaseUserRecord>>(
-      `/api/collections/${this.authCollectionName}/records?perPage=1&filter=${encodeURIComponent(`email=\"${escapedEmail}\"`)}`,
+      `/api/collections/${this.authCollectionName}/records?perPage=1&filter=${encodeURIComponent(`email="${escapedEmail}"`)}`,
       {
         method: 'GET',
         headers: {
@@ -131,9 +143,17 @@ export class PocketBaseSyncService {
     );
   }
 
-  private async upsertUserAppsRecord(superToken: string, userId: string, appId: string) {
-    const relationFilter = encodeURIComponent(`user=\"${userId}\" && appId=\"${appId}\"`);
-    const list = await this.requestJson<PocketBaseListResponse<PocketBaseUserAppRecord>>(
+  private async upsertUserAppsRecord(
+    superToken: string,
+    userId: string,
+    appId: string,
+  ) {
+    const relationFilter = encodeURIComponent(
+      `user="${userId}" && appId="${appId}"`,
+    );
+    const list = await this.requestJson<
+      PocketBaseListResponse<PocketBaseUserAppRecord>
+    >(
       `/api/collections/${this.userAppsCollectionName}/records?perPage=1&filter=${relationFilter}`,
       {
         method: 'GET',
@@ -183,7 +203,11 @@ export class PocketBaseSyncService {
     );
   }
 
-  async syncUserByPhone(phone: string, nickname: string, appIdRaw?: string): Promise<void> {
+  async syncUserByPhone(
+    phone: string,
+    nickname: string,
+    appIdRaw?: string,
+  ): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn('PocketBase未配置完整，跳过用户同步。');
       return;
@@ -256,7 +280,11 @@ export class PocketBaseSyncService {
     const email = emailRaw.trim().toLowerCase();
     const appId = this.normalizeAppId(appIdRaw);
     const superToken = await this.getSuperuserToken();
-    const created = await this.requestJson<{ id: string; email: string; name?: string }>(
+    const created = await this.requestJson<{
+      id: string;
+      email: string;
+      name?: string;
+    }>(
       `/api/collections/${this.authCollectionName}/records`,
       {
         method: 'POST',

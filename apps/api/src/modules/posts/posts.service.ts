@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export type CreatePostInput = {
@@ -103,7 +107,7 @@ export class PostsService {
       author: post.author,
       content: post.content,
       district: post.district,
-      topics: (post.postTopics as any[])?.map((item: any) => item.topic.name) ?? [],
+      topics: post.postTopics.map((item) => item.topic.name),
       createdAt: post.createdAt.toISOString(),
     };
   }
@@ -136,7 +140,9 @@ export class PostsService {
       },
     });
     if (result.count === 0) {
-      throw new NotFoundException(`post ${postId} not found or not owned by actor`);
+      throw new NotFoundException(
+        `post ${postId} not found or not owned by actor`,
+      );
     }
     return { success: true, postId };
   }
