@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - master
 
 env:
   IMAGE_NAME: ghcr.io/asd15361/changsha-api-deploy-1771690801/changsha-api
