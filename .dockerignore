@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+**/.expo
+**/.next
+**/dist
+**/coverage
+*.log
+tmp-*.txt
+.git
+.gitignore
+docs
+ui参考图
+nul

@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String      @id @default(cuid())
+  phone        String      @unique
+  email        String?     @unique
+  nickname     String
+  bio          String?
+  district     String?
+  avatarUrl    String?
+  status       String      @default("NORMAL")
+  isBot        Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  posts        Post[]
+  comments     Comment[]
+  likes        Like[]
+  following    Follow[]    @relation("UserFollowing")
+  followers    Follow[]    @relation("UserFollowers")
+  reports      Report[]    @relation("ReportReporter")
+  modActions   ModerationAction[] @relation("ModOperator")
+
+  @@index([createdAt])
+}
+
+model Post {
+  id          String      @id @default(cuid())
+  authorId    String
+  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content     String
+  district    String?
+  imageUrls   String      // SQLite: JSON string
+  isBot       Boolean     @default(false)
+  sourceLabel String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+  comments    Comment[]
+  likes       Like[]
+  postTopics  PostTopic[]
+
+  @@index([createdAt, deletedAt])
+  @@index([district, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model Topic {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  posts     PostTopic[]
+}
+
+model PostTopic {
+  postId      String
+  topicId     String
+  assignedAt  DateTime   @default(now())
+  post        Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  topic       Topic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([postId, topicId])
+  @@index([topicId, assignedAt])
+}
+
+model Comment {
+  id         String    @id @default(cuid())
+  postId     String
+  post       Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content    String
+  createdAt  DateTime  @default(now())
+  deletedAt  DateTime?
+
+  @@index([postId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model Like {
+  postId    String
+  userId    String
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@id([postId, userId])
+  @@index([userId, createdAt])
+}
+
+model Follow {
+  followerId  String
+  followingId String
+  follower    User      @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User      @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@id([followerId, followingId])
+  @@index([followingId, createdAt])
+}
+
+model Report {
+  id          String      @id @default(cuid())
+  reporterId  String
+  reporter    User        @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType  String
+  targetId    String
+  reason      String
+  detail      String?
+  status      String      @default("PENDING")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  actions     ModerationAction[]
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+}
+
+model ModerationAction {
+  id         String    @id @default(cuid())
+  reportId   String
+  report     Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actionType String
+  note       String?
+  operatorId String?
+  operator   User?     @relation("ModOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
+
+  @@index([reportId, createdAt])
+}

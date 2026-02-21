@@ -1,0 +1,20 @@
+{
+  "name": "changsha-pulse",
+  "version": "1.1.6",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "bump-version": "node scripts/bump-version.js",
+    "dev:api": "npm run start:dev -w @changsha-pulse/api",
+    "dev:admin": "npm run dev -w @changsha-pulse/admin",
+    "dev:mobile": "npm run start -w @changsha-pulse/mobile",
+    "build:api": "npm run build -w @changsha-pulse/api",
+    "build:admin": "npm run build -w @changsha-pulse/admin",
+    "lint:api": "npm run lint -w @changsha-pulse/api",
+    "lint:admin": "npm run lint -w @changsha-pulse/admin",
+    "package:release": "powershell -ExecutionPolicy Bypass -File ./scripts/package-release.ps1",
+    "package:android": "powershell -ExecutionPolicy Bypass -File ./scripts/package-android.ps1"
+  }
+}
