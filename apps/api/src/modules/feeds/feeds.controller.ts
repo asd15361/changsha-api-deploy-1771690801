@@ -1,6 +1,9 @@
 import { Controller, Get, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { requireUserIdFromAuthorizationHeader } from '../../common/auth';
+import {
+  parseUserIdFromAuthorizationHeader,
+  requireUserIdFromAuthorizationHeader,
+} from '../../common/auth';
 import { FeedsService } from './feeds.service';
 
 @Controller('feeds')
@@ -21,19 +24,30 @@ export class FeedsController {
 
   @Get('local')
   getLocalFeed(
+    @Req() req: Request,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
     @Query('district') district?: string,
   ) {
-    return this.feedsService.getLocalFeed({ cursor, limit, district });
+    const userId = parseUserIdFromAuthorizationHeader(
+      req.headers.authorization,
+    );
+    return this.feedsService.getLocalFeed({ cursor, limit, district }, userId);
   }
 
   @Get('recommended')
   getRecommendedFeed(
+    @Req() req: Request,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
     @Query('district') district?: string,
   ) {
-    return this.feedsService.getRecommendedFeed({ cursor, limit, district });
+    const userId = parseUserIdFromAuthorizationHeader(
+      req.headers.authorization,
+    );
+    return this.feedsService.getRecommendedFeed(
+      { cursor, limit, district },
+      userId,
+    );
   }
 }

@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Patch,
+  Query,
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -34,6 +35,12 @@ export class AdminController {
   getReports(@Req() req: Request) {
     requireAdminApiKey(req.headers['x-admin-key']);
     return this.adminService.getReports();
+  }
+
+  @Get('metrics/overview')
+  getMetricsOverview(@Req() req: Request, @Query('days') days?: string) {
+    requireAdminApiKey(req.headers['x-admin-key']);
+    return this.adminService.getOverviewMetrics(days);
   }
 
   @Patch('reports/:reportId')

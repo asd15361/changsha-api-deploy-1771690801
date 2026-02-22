@@ -21,7 +21,15 @@ export class SearchController {
   }
 
   @Get('topics/:topic/posts')
-  getTopicPosts(@Param('topic') topic: string, @Query('cursor') cursor?: string) {
+  getTopicPosts(
+    @Param('topic') topic: string,
+    @Query('cursor') cursor?: string,
+  ) {
     return this.searchService.getTopicPosts(topic, cursor);
+  }
+
+  @Get('topics/hot')
+  getHotTopics(@Query('limit') limit?: string, @Query('days') days?: string) {
+    return this.searchService.getHotTopics(limit, days);
   }
 }

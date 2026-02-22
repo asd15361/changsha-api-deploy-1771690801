@@ -1,12 +1,87 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
-type ReportAction = 'ignore' | 'delete_post' | 'delete_comment' | 'mute_user' | 'ban_user';
+type ReportAction =
+  | 'ignore'
+  | 'delete_post'
+  | 'delete_comment'
+  | 'mute_user'
+  | 'ban_user';
 type UserStatusInput = 'normal' | 'limited' | 'muted' | 'banned';
 
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private normalizeDays(daysRaw?: string): number {
+    const parsed = Number(daysRaw ?? '7');
+    if (!Number.isFinite(parsed) || parsed <= 0) return 7;
+    return Math.min(30, Math.floor(parsed));
+  }
+
+  async getOverviewMetrics(daysRaw?: string) {
+    const days = this.normalizeDays(daysRaw);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    await this.prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS app_events (
+        id TEXT PRIMARY KEY,
+        event_name TEXT NOT NULL,
+        user_id TEXT,
+        platform TEXT,
+        meta_json TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+    );
+
+    const [
+      newUsers,
+      posts,
+      comments,
+      likes,
+      reports,
+      resolvedReports,
+      topEvents,
+    ] = await Promise.all([
+      this.prisma.user.count({ where: { createdAt: { gte: since } } }),
+      this.prisma.post.count({
+        where: { createdAt: { gte: since }, deletedAt: null },
+      }),
+      this.prisma.comment.count({
+        where: { createdAt: { gte: since }, deletedAt: null },
+      }),
+      this.prisma.like.count({ where: { createdAt: { gte: since } } }),
+      this.prisma.report.count({ where: { createdAt: { gte: since } } }),
+      this.prisma.report.count({
+        where: { createdAt: { gte: since }, status: 'RESOLVED' },
+      }),
+      this.prisma.$queryRaw<Array<{ event_name: string; count: number }>>`
+          SELECT event_name, COUNT(*) as count
+          FROM app_events
+          WHERE created_at >= ${since.toISOString()}
+          GROUP BY event_name
+          ORDER BY count DESC
+          LIMIT 12
+        `,
+    ]);
+
+    return {
+      days,
+      since: since.toISOString(),
+      summary: {
+        newUsers,
+        posts,
+        comments,
+        likes,
+        reports,
+        resolvedReports,
+      },
+      events: topEvents.map((item) => ({
+        eventName: item.event_name,
+        count: Number(item.count),
+      })),
+    };
+  }
 
   private mapAction(action: ReportAction): string {
     if (action === 'ignore') return 'IGNORE';

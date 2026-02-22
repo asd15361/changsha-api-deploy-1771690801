@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
+import { recordAppEvent } from '../../common/analytics';
 import { PrismaService } from '../../prisma/prisma.service';
 
 type FeedQuery = {
@@ -23,6 +24,10 @@ type FeedItem = {
   likeCount: number;
   commentCount: number;
   repostCount: number;
+};
+
+type RankedFeedItem = FeedItem & {
+  score: number;
 };
 
 function normalizeLimit(limit?: string): number {
@@ -77,6 +82,29 @@ function mapFeedItem(
 export class FeedsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private scoreRecommendedItem(
+    item: Prisma.PostGetPayload<{
+      include: {
+        author: { select: { id: true; nickname: true; isBot: true } };
+        _count: { select: { comments: true; likes: true } };
+      };
+    }>,
+    followedAuthorIds: Set<string>,
+  ): number {
+    const ageHours = Math.max(
+      0,
+      (Date.now() - item.createdAt.getTime()) / (60 * 60 * 1000),
+    );
+    const recencyScore = Math.max(0, 72 - ageHours) / 72;
+    const engagementRaw = item._count.likes * 2 + item._count.comments * 3;
+    const engagementScore = Math.min(1, engagementRaw / 20);
+    const followBonus = followedAuthorIds.has(item.authorId) ? 0.2 : 0;
+    const botPenalty = item.isBot ? -0.1 : 0;
+    return (
+      recencyScore * 0.5 + engagementScore * 0.4 + followBonus + botPenalty
+    );
+  }
+
   async getFollowingFeed(userId: string, query: FeedQuery) {
     const limit = normalizeLimit(query.limit);
     const cursorWhere = await buildCursorWhere(this.prisma, query.cursor);
@@ -120,6 +148,11 @@ export class FeedsService {
     });
 
     const mapped = items.map(mapFeedItem);
+    await recordAppEvent(this.prisma, {
+      eventName: 'feed_view_following',
+      userId,
+      meta: { itemCount: mapped.length, limit },
+    });
     return {
       items: mapped,
       nextCursor: mapped.length === limit ? mapped[mapped.length - 1].id : null,
@@ -128,7 +161,7 @@ export class FeedsService {
     };
   }
 
-  async getLocalFeed(query: FeedQuery) {
+  async getLocalFeed(query: FeedQuery, viewerUserId?: string | null) {
     const limit = normalizeLimit(query.limit);
     const cursorWhere = await buildCursorWhere(this.prisma, query.cursor);
     const andClauses: Prisma.PostWhereInput[] = [];
@@ -177,6 +210,15 @@ export class FeedsService {
     }
 
     const mapped = filtered.map(mapFeedItem);
+    await recordAppEvent(this.prisma, {
+      eventName: 'feed_view_local',
+      userId: viewerUserId ?? undefined,
+      meta: {
+        itemCount: mapped.length,
+        limit,
+        district: query.district ?? 'all',
+      },
+    });
     return {
       items: mapped,
       nextCursor: mapped.length === limit ? mapped[mapped.length - 1].id : null,
@@ -187,7 +229,86 @@ export class FeedsService {
     };
   }
 
-  async getRecommendedFeed(query: FeedQuery) {
-    return this.getLocalFeed(query);
+  async getRecommendedFeed(query: FeedQuery, viewerUserId?: string | null) {
+    const limit = normalizeLimit(query.limit);
+    const cursorWhere = await buildCursorWhere(this.prisma, query.cursor);
+
+    const andClauses: Prisma.PostWhereInput[] = [];
+    if (query.district) {
+      andClauses.push({ district: query.district });
+    }
+    if (cursorWhere) {
+      andClauses.push(cursorWhere);
+    }
+
+    const followedAuthorIds = new Set<string>();
+    if (viewerUserId) {
+      const following = await this.prisma.follow.findMany({
+        where: { followerId: viewerUserId },
+        select: { followingId: true },
+      });
+      following.forEach((item) => followedAuthorIds.add(item.followingId));
+    }
+
+    const candidates = await this.prisma.post.findMany({
+      where: {
+        deletedAt: null,
+        ...(andClauses.length > 0 ? { AND: andClauses } : {}),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit * 8,
+      include: {
+        author: {
+          select: {
+            id: true,
+            nickname: true,
+            isBot: true,
+          },
+        },
+        _count: {
+          select: {
+            comments: true,
+            likes: true,
+          },
+        },
+      },
+    });
+
+    const ranked = candidates
+      .map((item) => {
+        const mapped = mapFeedItem(item);
+        return {
+          ...mapped,
+          score: this.scoreRecommendedItem(item, followedAuthorIds),
+        } as RankedFeedItem;
+      })
+      .sort((a, b) => {
+        if (b.score === a.score) {
+          return a.createdAt < b.createdAt ? 1 : -1;
+        }
+        return b.score - a.score;
+      });
+
+    const selected: FeedItem[] = ranked.slice(0, limit);
+
+    await recordAppEvent(this.prisma, {
+      eventName: 'feed_view_recommended',
+      userId: viewerUserId ?? undefined,
+      meta: {
+        itemCount: selected.length,
+        limit,
+        district: query.district ?? 'all',
+      },
+    });
+
+    return {
+      items: selected,
+      nextCursor:
+        selected.length === limit ? selected[selected.length - 1].id : null,
+      limit,
+      district: query.district ?? 'all',
+      cursor: query.cursor ?? null,
+      strategy: 'weighted_v1',
+    };
   }
 }

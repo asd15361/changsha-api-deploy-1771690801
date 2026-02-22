@@ -1,5 +1,10 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { recordAppEvent } from '../../common/analytics';
 import { issueAccessToken } from '../../common/auth';
 import { PocketBaseSyncService } from './pocketbase-sync.service';
 
@@ -43,10 +48,19 @@ export class AuthService {
     }
   }
 
+  private ensureCanLogin(status: string) {
+    if (status === 'BANNED') {
+      throw new UnauthorizedException('Account is banned.');
+    }
+  }
+
   private async generateUniquePhoneForEmail(): Promise<string> {
     for (let i = 0; i < 20; i += 1) {
       const candidate = `19${Math.floor(100000000 + Math.random() * 900000000)}`;
-      const exists = await this.prisma.user.findUnique({ where: { phone: candidate }, select: { id: true } });
+      const exists = await this.prisma.user.findUnique({
+        where: { phone: candidate },
+        select: { id: true },
+      });
       if (!exists) return candidate;
     }
     throw new BadRequestException('Unable to allocate phone placeholder.');
@@ -81,7 +95,11 @@ export class AuthService {
     }
 
     const otpItem = this.otpStore.get(phone);
-    if (!otpItem || otpItem.expiresAt < Date.now() || otpItem.code !== normalizedCode) {
+    if (
+      !otpItem ||
+      otpItem.expiresAt < Date.now() ||
+      otpItem.code !== normalizedCode
+    ) {
       throw new UnauthorizedException('Invalid or expired verification code.');
     }
     this.otpStore.delete(phone);
@@ -95,10 +113,20 @@ export class AuthService {
         district: 'Changsha',
       },
     });
+    this.ensureCanLogin(user.status);
 
-    await this.pocketBaseSyncService.syncUserByPhone(phone, user.nickname, appIdRaw);
+    await this.pocketBaseSyncService.syncUserByPhone(
+      phone,
+      user.nickname,
+      appIdRaw,
+    );
 
     const token = issueAccessToken(user.id);
+    await recordAppEvent(this.prisma, {
+      eventName: 'auth_login_phone',
+      userId: user.id,
+      platform: appIdRaw?.trim() || 'mobile',
+    });
     return {
       success: true,
       token,
@@ -112,14 +140,23 @@ export class AuthService {
     };
   }
 
-  async registerEmail(rawEmail: string, rawPassword: string, appIdRaw?: string) {
+  async registerEmail(
+    rawEmail: string,
+    rawPassword: string,
+    appIdRaw?: string,
+  ) {
     const email = this.normalizeEmail(rawEmail);
     const password = rawPassword.trim();
     this.validateEmail(email);
     this.validatePassword(password);
 
     const nickname = email.split('@')[0] || '新用户';
-    await this.pocketBaseSyncService.registerEmailUser(email, password, nickname, appIdRaw);
+    await this.pocketBaseSyncService.registerEmailUser(
+      email,
+      password,
+      nickname,
+      appIdRaw,
+    );
 
     const user = await this.prisma.user.upsert({
       where: { email },
@@ -131,8 +168,14 @@ export class AuthService {
         district: 'Changsha',
       },
     });
+    this.ensureCanLogin(user.status);
 
     const token = issueAccessToken(user.id);
+    await recordAppEvent(this.prisma, {
+      eventName: 'auth_register_email',
+      userId: user.id,
+      platform: appIdRaw?.trim() || 'mobile',
+    });
     return {
       success: true,
       token,
@@ -152,7 +195,11 @@ export class AuthService {
     this.validateEmail(email);
     this.validatePassword(password);
 
-    const pbUser = await this.pocketBaseSyncService.loginEmailUser(email, password, appIdRaw);
+    const pbUser = await this.pocketBaseSyncService.loginEmailUser(
+      email,
+      password,
+      appIdRaw,
+    );
     const user = await this.prisma.user.upsert({
       where: { email },
       update: { nickname: pbUser.name || email.split('@')[0] },
@@ -163,8 +210,14 @@ export class AuthService {
         district: 'Changsha',
       },
     });
+    this.ensureCanLogin(user.status);
 
     const token = issueAccessToken(user.id);
+    await recordAppEvent(this.prisma, {
+      eventName: 'auth_login_email',
+      userId: user.id,
+      platform: appIdRaw?.trim() || 'mobile',
+    });
     return {
       success: true,
       token,

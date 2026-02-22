@@ -13,6 +13,18 @@ function normalizeTopicName(input: string): string {
 export class SearchService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private normalizeLimit(limitRaw?: string, max = 50, fallback = 20): number {
+    const parsed = Number(limitRaw ?? fallback);
+    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+    return Math.min(max, Math.floor(parsed));
+  }
+
+  private normalizeDays(daysRaw?: string): number {
+    const parsed = Number(daysRaw ?? '7');
+    if (!Number.isFinite(parsed) || parsed <= 0) return 7;
+    return Math.min(30, Math.floor(parsed));
+  }
+
   async searchUsers(query: string) {
     const q = query.trim();
     const items = await this.prisma.user.findMany({
@@ -129,6 +141,49 @@ export class SearchService {
         id: postTopic.post.id,
         content: postTopic.post.content,
         createdAt: postTopic.post.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  async getHotTopics(limitRaw?: string, daysRaw?: string) {
+    const limit = this.normalizeLimit(limitRaw, 30, 10);
+    const days = this.normalizeDays(daysRaw);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const grouped = await this.prisma.postTopic.groupBy({
+      by: ['topicId'],
+      where: {
+        assignedAt: { gte: since },
+        post: {
+          deletedAt: null,
+        },
+      },
+      _count: {
+        topicId: true,
+      },
+      orderBy: {
+        _count: {
+          topicId: 'desc',
+        },
+      },
+      take: limit,
+    });
+
+    const topicIds = grouped.map((item) => item.topicId);
+    const topics = topicIds.length
+      ? await this.prisma.topic.findMany({
+          where: { id: { in: topicIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+
+    const topicNameMap = new Map(topics.map((item) => [item.id, item.name]));
+
+    return {
+      days,
+      items: grouped.map((item) => ({
+        topic: topicNameMap.get(item.topicId) ?? item.topicId,
+        postCount: item._count.topicId,
       })),
     };
   }

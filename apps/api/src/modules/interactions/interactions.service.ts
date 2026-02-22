@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { recordAppEvent } from '../../common/analytics';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -79,6 +80,11 @@ export class InteractionsService {
         content,
       },
     });
+    await recordAppEvent(this.prisma, {
+      eventName: 'post_comment',
+      userId,
+      meta: { postId, commentId: comment.id },
+    });
     return {
       success: true,
       postId,
@@ -109,6 +115,11 @@ export class InteractionsService {
       update: {},
       create: { postId, userId },
     });
+    await recordAppEvent(this.prisma, {
+      eventName: 'post_like',
+      userId,
+      meta: { postId },
+    });
     return { success: true, postId };
   }
 
@@ -133,6 +144,12 @@ export class InteractionsService {
         sourceLabel: `repost:${postId}`,
       },
       select: { id: true },
+    });
+
+    await recordAppEvent(this.prisma, {
+      eventName: 'post_repost',
+      userId,
+      meta: { postId, repostId: repost.id, hasQuote: Boolean(text) },
     });
 
     return {
