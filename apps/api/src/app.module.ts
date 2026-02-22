@@ -12,6 +12,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AutomationModule } from './modules/automation/automation.module';
+import { MessagesModule } from './modules/messages/messages.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AutomationModule } from './modules/automation/automation.module';
     InteractionsModule,
     SearchModule,
     NotificationsModule,
+    MessagesModule,
     ReportsModule,
     AdminModule,
     AutomationModule,

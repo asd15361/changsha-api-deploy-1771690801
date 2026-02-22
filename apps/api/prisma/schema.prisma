@@ -19,6 +19,11 @@ model User {
   isBot        Boolean     @default(false)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+  // 新增：标识用户所属的App，符合PocketBase规范
+  appId        String      @default("mobile")
+  // 新增：审计字段
+  createdBy    String?
+  updatedBy    String?
   posts        Post[]
   comments     Comment[]
   likes        Like[]
@@ -26,8 +31,51 @@ model User {
   followers    Follow[]    @relation("UserFollowers")
   reports      Report[]    @relation("ReportReporter")
   modActions   ModerationAction[] @relation("ModOperator")
+  // 新增：用户阅读通知记录
+  notificationReads NotificationRead[]
+  conversationMembers ConversationMember[]
+  sentMessages Message[] @relation("MessageSender")
 
   @@index([createdAt])
+  @@index([appId])
+}
+
+model Conversation {
+  id            String               @id @default(cuid())
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  lastMessageAt DateTime             @default(now())
+  members       ConversationMember[]
+  messages      Message[]
+
+  @@index([lastMessageAt])
+}
+
+model ConversationMember {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  lastReadAt     DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId, updatedAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId, createdAt])
 }
 
 model Post {
@@ -42,6 +90,9 @@ model Post {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   deletedAt   DateTime?
+  // 新增：审计字段
+  createdBy   String?
+  updatedBy   String?
   comments    Comment[]
   likes       Like[]
   postTopics  PostTopic[]
@@ -78,6 +129,9 @@ model Comment {
   content    String
   createdAt  DateTime  @default(now())
   deletedAt  DateTime?
+  // 新增：审计字段
+  createdBy  String?
+  updatedBy  String?
 
   @@index([postId, createdAt])
   @@index([authorId, createdAt])
@@ -89,6 +143,8 @@ model Like {
   post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())
+  // 新增：审计字段
+  createdBy String?
 
   @@id([postId, userId])
   @@index([userId, createdAt])
@@ -100,6 +156,8 @@ model Follow {
   follower    User      @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
   following   User      @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
+  // 新增：审计字段
+  createdBy   String?
 
   @@id([followerId, followingId])
   @@index([followingId, createdAt])
@@ -131,6 +189,21 @@ model ModerationAction {
   operatorId String?
   operator   User?     @relation("ModOperator", fields: [operatorId], references: [id], onDelete: SetNull)
   createdAt  DateTime  @default(now())
+  // 新增：审计字段
+  createdBy  String?
 
   @@index([reportId, createdAt])
+}
+
+// 通知已读状态 - 修复根因：原来用内存Map存储，服务重启后丢失
+model NotificationRead {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetType  String   // comment/like/follow
+  targetId    String
+  readAt      DateTime @default(now())
+
+  @@unique([userId, targetType, targetId])
+  @@index([userId])
 }
