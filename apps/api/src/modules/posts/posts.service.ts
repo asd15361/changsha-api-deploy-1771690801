@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { recordAppEvent } from '../../common/analytics';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export type CreatePostInput = {
@@ -95,6 +96,16 @@ export class PostsService {
       },
     });
 
+    await recordAppEvent(this.prisma, {
+      eventName: 'post_create',
+      userId: author.id,
+      meta: {
+        postId: post.id,
+        district: post.district ?? 'Changsha',
+        topicCount: post.postTopics.length,
+      },
+    });
+
     return {
       success: true,
       postId: post.id,
@@ -116,6 +127,7 @@ export class PostsService {
           select: {
             id: true,
             nickname: true,
+            avatarUrl: true,
             isBot: true,
           },
         },

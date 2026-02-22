@@ -25,14 +25,23 @@ export class SearchService {
     return Math.min(30, Math.floor(parsed));
   }
 
-  async searchUsers(query: string) {
+  async searchUsers(query: string, currentUserId?: string | null) {
     const q = query.trim();
     const items = await this.prisma.user.findMany({
       where: q
         ? {
-            nickname: {
-              contains: q,
-            },
+            OR: [
+              {
+                nickname: {
+                  contains: q,
+                },
+              },
+              {
+                id: {
+                  contains: q,
+                },
+              },
+            ],
           }
         : undefined,
       orderBy: {
@@ -43,8 +52,34 @@ export class SearchService {
         id: true,
         nickname: true,
         district: true,
+        avatarUrl: true,
       },
     });
+
+    const ids = items.map((item) => item.id);
+    const followingSet = new Set<string>();
+    const followedBySet = new Set<string>();
+
+    if (currentUserId && ids.length > 0) {
+      const [followingRows, followedByRows] = await Promise.all([
+        this.prisma.follow.findMany({
+          where: {
+            followerId: currentUserId,
+            followingId: { in: ids },
+          },
+          select: { followingId: true },
+        }),
+        this.prisma.follow.findMany({
+          where: {
+            followingId: currentUserId,
+            followerId: { in: ids },
+          },
+          select: { followerId: true },
+        }),
+      ]);
+      followingRows.forEach((row) => followingSet.add(row.followingId));
+      followedByRows.forEach((row) => followedBySet.add(row.followerId));
+    }
 
     return {
       query: q,
@@ -52,6 +87,9 @@ export class SearchService {
         id: item.id,
         nickname: item.nickname,
         district: item.district ?? 'Changsha',
+        avatarUrl: item.avatarUrl ?? null,
+        isFollowing: followingSet.has(item.id),
+        isFollowedBy: followedBySet.has(item.id),
       })),
     };
   }

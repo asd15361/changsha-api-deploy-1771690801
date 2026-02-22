@@ -15,6 +15,7 @@ type FeedItem = {
   author: {
     id: string;
     nickname: string;
+    avatarUrl: string | null;
     isBot: boolean;
   };
   content: string;
@@ -59,7 +60,9 @@ async function buildCursorWhere(
 function mapFeedItem(
   item: Prisma.PostGetPayload<{
     include: {
-      author: { select: { id: true; nickname: true; isBot: true } };
+      author: {
+        select: { id: true; nickname: true; avatarUrl: true; isBot: true };
+      };
       _count: { select: { comments: true; likes: true } };
     };
   }>,
@@ -85,7 +88,9 @@ export class FeedsService {
   private scoreRecommendedItem(
     item: Prisma.PostGetPayload<{
       include: {
-        author: { select: { id: true; nickname: true; isBot: true } };
+        author: {
+          select: { id: true; nickname: true; avatarUrl: true; isBot: true };
+        };
         _count: { select: { comments: true; likes: true } };
       };
     }>,
@@ -135,6 +140,7 @@ export class FeedsService {
           select: {
             id: true,
             nickname: true,
+            avatarUrl: true,
             isBot: true,
           },
         },
@@ -184,6 +190,7 @@ export class FeedsService {
           select: {
             id: true,
             nickname: true,
+            avatarUrl: true,
             isBot: true,
           },
         },
@@ -262,6 +269,7 @@ export class FeedsService {
           select: {
             id: true,
             nickname: true,
+            avatarUrl: true,
             isBot: true,
           },
         },

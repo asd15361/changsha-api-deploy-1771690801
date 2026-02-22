@@ -1,4 +1,7 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Req } from '@nestjs/common';
+import type { Request } from 'express';
+import { parseUserIdFromAuthorizationHeader } from '../../common/auth';
 import { SearchService } from './search.service';
 
 @Controller()
@@ -6,8 +9,11 @@ export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
   @Get('search/users')
-  searchUsers(@Query('q') q = '') {
-    return this.searchService.searchUsers(q);
+  searchUsers(@Req() req: Request, @Query('q') q = '') {
+    const currentUserId = parseUserIdFromAuthorizationHeader(
+      req.headers.authorization,
+    );
+    return this.searchService.searchUsers(q, currentUserId);
   }
 
   @Get('search/topics')

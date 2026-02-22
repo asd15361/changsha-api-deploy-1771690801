@@ -150,7 +150,7 @@ export class AuthService {
     this.validateEmail(email);
     this.validatePassword(password);
 
-    const nickname = email.split('@')[0] || '新用户';
+    const nickname = `长沙用户${Math.floor(1000 + Math.random() * 9000)}`;
     await this.pocketBaseSyncService.registerEmailUser(
       email,
       password,
@@ -160,7 +160,7 @@ export class AuthService {
 
     const user = await this.prisma.user.upsert({
       where: { email },
-      update: { nickname },
+      update: {},
       create: {
         email,
         phone: await this.generateUniquePhoneForEmail(),
@@ -202,11 +202,11 @@ export class AuthService {
     );
     const user = await this.prisma.user.upsert({
       where: { email },
-      update: { nickname: pbUser.name || email.split('@')[0] },
+      update: {},
       create: {
         email,
         phone: await this.generateUniquePhoneForEmail(),
-        nickname: pbUser.name || email.split('@')[0],
+        nickname: pbUser.name || `长沙用户${Math.floor(1000 + Math.random() * 9000)}`,
         district: 'Changsha',
       },
     });
