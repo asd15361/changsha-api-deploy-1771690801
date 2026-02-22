@@ -1,4 +1,7 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
+import { requireUserIdFromAuthorizationHeader } from '../../common/auth';
+import { NotificationsService } from './notifications.service';
 
 type ReadNotificationsBody = {
   ids: string[];
@@ -6,28 +9,21 @@ type ReadNotificationsBody = {
 
 @Controller('notifications')
 export class NotificationsController {
+  constructor(private readonly notificationsService: NotificationsService) {}
+
   @Get()
-  getNotifications(): {
-    items: Array<{ id: string; type: string; message: string; createdAt: string; read: boolean }>;
-  } {
-    return {
-      items: [
-        {
-          id: 'notify_mock_001',
-          type: 'comment',
-          message: '有人评论了你的帖子',
-          createdAt: new Date().toISOString(),
-          read: false,
-        },
-      ],
-    };
+  getNotifications(@Req() req: Request) {
+    const userId = requireUserIdFromAuthorizationHeader(
+      req.headers.authorization,
+    );
+    return this.notificationsService.getNotifications(userId);
   }
 
   @Post('read')
-  markRead(@Body() body: ReadNotificationsBody): { success: boolean; ids: string[] } {
-    return {
-      success: true,
-      ids: body.ids ?? [],
-    };
+  markRead(@Req() req: Request, @Body() body: ReadNotificationsBody) {
+    const userId = requireUserIdFromAuthorizationHeader(
+      req.headers.authorization,
+    );
+    return this.notificationsService.markReadBatch(userId, body.ids ?? []);
   }
 }

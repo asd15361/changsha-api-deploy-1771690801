@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Req,
+} from '@nestjs/common';
+import type { Request } from 'express';
+import { requireUserIdFromAuthorizationHeader } from '../../common/auth';
+import { InteractionsService } from './interactions.service';
 
 type CommentBody = {
   content: string;
@@ -10,62 +21,58 @@ type RepostBody = {
 
 @Controller()
 export class InteractionsController {
+  constructor(private readonly interactionsService: InteractionsService) {}
+
   @Get('posts/:postId/comments')
-  getComments(@Param('postId') postId: string): {
-    postId: string;
-    items: Array<{ id: string; authorId: string; content: string; createdAt: string }>;
-  } {
-    return {
-      postId,
-      items: [
-        {
-          id: 'comment_mock_001',
-          authorId: 'user_mock_004',
-          content: '收到，已关注活动。',
-          createdAt: new Date().toISOString(),
-        },
-      ],
-    };
+  getComments(@Param('postId') postId: string) {
+    return this.interactionsService.getComments(postId);
   }
 
   @Post('posts/:postId/comments')
   createComment(
+    @Req() req: Request,
     @Param('postId') postId: string,
     @Body() body: CommentBody,
-  ): { success: boolean; postId: string; commentId: string; content: string } {
-    return {
-      success: true,
-      postId,
-      commentId: 'comment_mock_002',
-      content: body.content,
-    };
+  ) {
+    const userId = requireUserIdFromAuthorizationHeader(
+      req.headers.authorization,
+    );
+    return this.interactionsService.createComment(postId, userId, body.content);
   }
 
   @Delete('comments/:commentId')
-  deleteComment(@Param('commentId') commentId: string): { success: boolean; commentId: string } {
-    return { success: true, commentId };
+  deleteComment(@Req() req: Request, @Param('commentId') commentId: string) {
+    const userId = requireUserIdFromAuthorizationHeader(
+      req.headers.authorization,
+    );
+    return this.interactionsService.deleteComment(commentId, userId);
   }
 
   @Post('posts/:postId/like')
-  likePost(@Param('postId') postId: string): { success: boolean; postId: string } {
-    return { success: true, postId };
+  likePost(@Req() req: Request, @Param('postId') postId: string) {
+    const userId = requireUserIdFromAuthorizationHeader(
+      req.headers.authorization,
+    );
+    return this.interactionsService.likePost(postId, userId);
   }
 
   @Delete('posts/:postId/like')
-  unlikePost(@Param('postId') postId: string): { success: boolean; postId: string } {
-    return { success: true, postId };
+  unlikePost(@Req() req: Request, @Param('postId') postId: string) {
+    const userId = requireUserIdFromAuthorizationHeader(
+      req.headers.authorization,
+    );
+    return this.interactionsService.unlikePost(postId, userId);
   }
 
   @Post('posts/:postId/repost')
   repostPost(
+    @Req() req: Request,
     @Param('postId') postId: string,
     @Body() body: RepostBody,
-  ): { success: boolean; postId: string; repostId: string; quoteText: string | null } {
-    return {
-      success: true,
-      postId,
-      repostId: 'repost_mock_001',
-      quoteText: body.quoteText ?? null,
-    };
+  ) {
+    const userId = requireUserIdFromAuthorizationHeader(
+      req.headers.authorization,
+    );
+    return this.interactionsService.repostPost(postId, userId, body.quoteText);
   }
 }

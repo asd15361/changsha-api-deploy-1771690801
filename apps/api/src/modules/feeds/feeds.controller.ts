@@ -13,7 +13,9 @@ export class FeedsController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    const userId = requireUserIdFromAuthorizationHeader(req.headers.authorization);
+    const userId = requireUserIdFromAuthorizationHeader(
+      req.headers.authorization,
+    );
     return this.feedsService.getFollowingFeed(userId, { cursor, limit });
   }
 
@@ -24,5 +26,14 @@ export class FeedsController {
     @Query('district') district?: string,
   ) {
     return this.feedsService.getLocalFeed({ cursor, limit, district });
+  }
+
+  @Get('recommended')
+  getRecommendedFeed(
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+    @Query('district') district?: string,
+  ) {
+    return this.feedsService.getRecommendedFeed({ cursor, limit, district });
   }
 }

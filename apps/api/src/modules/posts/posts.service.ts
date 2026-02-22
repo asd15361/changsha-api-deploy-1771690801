@@ -24,6 +24,9 @@ export class PostsService {
     if (!content) {
       throw new BadRequestException('content is required');
     }
+    if (content.length > 300) {
+      throw new BadRequestException('content too long, max 300 chars');
+    }
 
     const author =
       input.authorId != null
@@ -32,6 +35,25 @@ export class PostsService {
 
     if (!author) {
       throw new NotFoundException('author not found');
+    }
+    if (author.status === 'MUTED' || author.status === 'BANNED') {
+      throw new BadRequestException(
+        'current account is not allowed to publish',
+      );
+    }
+
+    const latestPost = await this.prisma.post.findFirst({
+      where: {
+        authorId: author.id,
+        deletedAt: null,
+      },
+      select: { createdAt: true },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+    if (latestPost && Date.now() - latestPost.createdAt.getTime() < 60_000) {
+      throw new BadRequestException(
+        'posting too frequently, try again in one minute',
+      );
     }
 
     const topics = (input.topics ?? [])
@@ -64,6 +86,12 @@ export class PostsService {
             topic: true,
           },
         },
+        _count: {
+          select: {
+            comments: true,
+            likes: true,
+          },
+        },
       },
     });
 
@@ -72,6 +100,8 @@ export class PostsService {
       postId: post.id,
       content: post.content,
       topics: post.postTopics.map((item) => item.topic.name),
+      likeCount: post._count.likes,
+      commentCount: post._count.comments,
     };
   }
 
@@ -94,6 +124,12 @@ export class PostsService {
             topic: true,
           },
         },
+        _count: {
+          select: {
+            comments: true,
+            likes: true,
+          },
+        },
       },
     });
 
@@ -108,6 +144,9 @@ export class PostsService {
       content: post.content,
       district: post.district,
       topics: post.postTopics.map((item) => item.topic.name),
+      likeCount: post._count.likes,
+      commentCount: post._count.comments,
+      repostCount: 0,
       createdAt: post.createdAt.toISOString(),
     };
   }

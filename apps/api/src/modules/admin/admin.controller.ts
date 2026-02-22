@@ -1,8 +1,23 @@
-import { Body, Controller, Delete, Get, Param, Patch } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Req,
+} from '@nestjs/common';
+import type { Request } from 'express';
+import { requireAdminApiKey } from '../../common/admin-auth';
 import { AdminService } from './admin.service';
 
 type ReportActionBody = {
-  action: 'ignore' | 'delete_post' | 'delete_comment' | 'mute_user' | 'ban_user';
+  action:
+    | 'ignore'
+    | 'delete_post'
+    | 'delete_comment'
+    | 'mute_user'
+    | 'ban_user';
   note?: string;
 };
 
@@ -16,7 +31,8 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('reports')
-  getReports() {
+  getReports(@Req() req: Request) {
+    requireAdminApiKey(req.headers['x-admin-key']);
     return this.adminService.getReports();
   }
 
@@ -24,7 +40,9 @@ export class AdminController {
   handleReport(
     @Param('reportId') reportId: string,
     @Body() body: ReportActionBody,
+    @Req() req: Request,
   ) {
+    requireAdminApiKey(req.headers['x-admin-key']);
     return this.adminService.handleReport(reportId, body.action, body.note);
   }
 
@@ -32,17 +50,24 @@ export class AdminController {
   updateUserStatus(
     @Param('userId') userId: string,
     @Body() body: UserStatusBody,
+    @Req() req: Request,
   ) {
+    requireAdminApiKey(req.headers['x-admin-key']);
     return this.adminService.updateUserStatus(userId, body.status);
   }
 
   @Delete('posts/:postId')
-  adminDeletePost(@Param('postId') postId: string) {
+  adminDeletePost(@Param('postId') postId: string, @Req() req: Request) {
+    requireAdminApiKey(req.headers['x-admin-key']);
     return this.adminService.adminDeletePost(postId);
   }
 
   @Delete('comments/:commentId')
-  adminDeleteComment(@Param('commentId') commentId: string) {
+  adminDeleteComment(
+    @Param('commentId') commentId: string,
+    @Req() req: Request,
+  ) {
+    requireAdminApiKey(req.headers['x-admin-key']);
     return this.adminService.adminDeleteComment(commentId);
   }
 }

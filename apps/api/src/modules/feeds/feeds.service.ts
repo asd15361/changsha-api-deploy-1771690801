@@ -20,6 +20,9 @@ type FeedItem = {
   district: string;
   isBot: boolean;
   createdAt: string;
+  likeCount: number;
+  commentCount: number;
+  repostCount: number;
 };
 
 function normalizeLimit(limit?: string): number {
@@ -50,7 +53,10 @@ async function buildCursorWhere(
 
 function mapFeedItem(
   item: Prisma.PostGetPayload<{
-    include: { author: { select: { id: true; nickname: true; isBot: true } } };
+    include: {
+      author: { select: { id: true; nickname: true; isBot: true } };
+      _count: { select: { comments: true; likes: true } };
+    };
   }>,
 ): FeedItem {
   return {
@@ -61,6 +67,9 @@ function mapFeedItem(
     district: item.district ?? 'Changsha',
     isBot: item.isBot,
     createdAt: item.createdAt.toISOString(),
+    likeCount: item._count.likes,
+    commentCount: item._count.comments,
+    repostCount: 0,
   };
 }
 
@@ -101,6 +110,12 @@ export class FeedsService {
             isBot: true,
           },
         },
+        _count: {
+          select: {
+            comments: true,
+            likes: true,
+          },
+        },
       },
     });
 
@@ -139,6 +154,12 @@ export class FeedsService {
             isBot: true,
           },
         },
+        _count: {
+          select: {
+            comments: true,
+            likes: true,
+          },
+        },
       },
     });
 
@@ -164,5 +185,9 @@ export class FeedsService {
       cursor: query.cursor ?? null,
       botRatioLimit: 0.2,
     };
+  }
+
+  async getRecommendedFeed(query: FeedQuery) {
+    return this.getLocalFeed(query);
   }
 }
